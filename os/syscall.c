@@ -48,16 +48,23 @@ uint64 sys_sched_yield()
 	return 0;
 }
 
-uint64 sys_gettimeofday(uint64 val, int _tz)
+uint64 sys_gettimeofday(uint64 va, int _tz) 
 {
 	struct proc *p = curr_proc();
+
+	uint64 pa = useraddr(p->pagetable, va);
+	if (pa == 0) {
+		return -1;
+	}
+
+	TimeVal *val = (TimeVal *)pa;
+
 	uint64 cycle = get_cycle();
-	TimeVal t;
-	t.sec = cycle / CPU_FREQ;
-	t.usec = (cycle % CPU_FREQ) * 1000000 / CPU_FREQ;
-	copyout(p->pagetable, val, (char *)&t, sizeof(TimeVal));
+	val->sec = cycle / CPU_FREQ;
+	val->usec = (cycle % CPU_FREQ) * 1000000 / CPU_FREQ;
 	return 0;
 }
+
 
 uint64 sys_getpid()
 {
@@ -69,6 +76,74 @@ uint64 sys_getppid()
 	struct proc *p = curr_proc();
 	return p->parent == NULL ? IDLE_PID : p->parent->pid;
 }
+
+uint64 sys_mmap(uint64 start, uint64 len, int port, int flag, int fd) {
+	if (len == 0) return 0;
+	if (len > MAX_MMAP_SIZE) return -1;
+	if (start % PGSIZE != 0) return -1;
+	if ((port & ~0x7) != 0) return -1;
+	if ((port & 0x7) == 0) return -1;
+
+	struct proc *p = curr_proc();
+	uint64 aligned_len = PGROUNDUP(len);
+
+	for (uint64 addr = start; addr < start + aligned_len; addr += PGSIZE) {
+		if (useraddr(p->pagetable, addr) != 0) {
+			return -1;
+		}
+	}
+
+	int perm = PTE_U;
+	if (port & 1) perm |= PTE_R;
+	if (port & 2) perm |= PTE_W;
+	if (port & 4) perm |= PTE_X;
+
+	for (uint64 addr = start; addr < start + aligned_len; addr += PGSIZE) {
+		void *pa = kalloc();
+		if (pa == 0) return -1;
+		memset(pa, 0, PGSIZE);
+
+		if (mappages(p->pagetable, addr, PGSIZE, (uint64)pa, perm) != 0) {
+			kfree(pa);
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+uint64 sys_munmap(uint64 start, uint64 len) {
+	if (start % PGSIZE != 0) { return -1; }
+	
+	struct proc *p = curr_proc();
+	uint64 aligned_len = PGROUNDUP(len);
+
+	for (uint64 addr = start; addr < start + aligned_len;  addr += PGSIZE) {
+		if (useraddr(p->pagetable, addr) == 0) {
+			return -1;
+		}
+	}
+
+	uvmunmap(p->pagetable, start, aligned_len / PGSIZE, 1);
+
+	return 0;
+}
+
+int sys_task_info(uint64 va) {
+	struct proc *p = curr_proc();
+
+	uint64 pa = useraddr(p->pagetable, va);
+	if (pa == 0) { return -1; }
+
+	TaskInfo *ti = (TaskInfo *)pa;
+
+	ti->status = p->info->status;
+
+	// int size = sizeof(curr_proc()->info->syscall_times) / sizeof(curr_proc()->info->syscall_times[0]);
+	for (int i = 0; i < MAX_SYSCALL_NUM; i++) {
+        ti->syscall_times[i] = p->info->syscall_times[i];
+    }
+
 
 uint64 sys_clone()
 {
@@ -148,6 +223,17 @@ void syscall()
 	case SYS_spawn:
 		ret = sys_spawn(args[0]);
 		break;
+	case sys_task_info:
+		ret = sys_task_info(args[0]);
+		break;
+	case SYS_mmap:
+		ret = sys_mmap(args[0], args[1], (int)args[2], (int)args[3], (int)args[4]);
+		break;
+	case SYS_munmap:
+		ret = sys_munmap(args[0], args[1]);
+		break;
+
+
 	default:
 		ret = -1;
 		errorf("unknown syscall %d", id);
