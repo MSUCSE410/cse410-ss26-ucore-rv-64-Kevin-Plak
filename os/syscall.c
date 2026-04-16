@@ -8,7 +8,6 @@
 #include "vm.h"
 
 #define MAX_MMAP_SIZE (1024 * 1024 * 1024)
-int BIG_STRIDE = 65536;		// Given BigStride value
 
 uint64 sys_write(int fd, uint64 va, uint len)
 {
@@ -186,14 +185,14 @@ uint64 sys_spawn(uint64 va)
 	int id = get_id_by_name(name);
 	if (id < 0) { return -1; }
 
-	struct proc *np = allocproc();
-	if (np == 0) { return -1; }
-	loader(id, np);
+	struct proc *child_p = allocproc();
+	if (child_p == 0) { return -1; }
+	loader(id, child_p);
 
-	np->parent = p;
-	np->state = RUNNABLE;
+	child_p->parent = p;
+	child_p->state = RUNNABLE;
 	
-	return np->pid;
+	return child_p->pid;
 }
 
 uint64 sys_set_priority(long long prio){
@@ -201,7 +200,7 @@ uint64 sys_set_priority(long long prio){
 	if (prio < 2) { return -1; }
 	struct proc *p = curr_proc();
 	p->priority = prio;
-	p->pass = BIG_STRIDE / prio;
+	p->pass = 65536 / prio;
 	return prio;
 }
 
