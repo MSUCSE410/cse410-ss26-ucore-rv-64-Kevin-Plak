@@ -1,6 +1,7 @@
 #include "loader.h"
 #include "defs.h"
 #include "trap.h"
+#include "timer.h"
 
 static int app_num;
 static uint64 *app_info_ptr;
@@ -97,6 +98,5 @@ int load_init_app()
 	}
 	debugf("load init proc %s", INIT_PROC);
 	loader(id, p);
-	add_task(p);
 	return 0;
 }

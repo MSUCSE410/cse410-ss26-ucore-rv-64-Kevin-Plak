@@ -5,7 +5,10 @@
 #include "syscall_ids.h"
 #include "timer.h"
 #include "trap.h"
-#include "vm.c"
+#include "vm.h"
+
+#define MAX_MMAP_SIZE (1024 * 1024 * 1024)
+int BIG_STRIDE = 65536;		// Given BigStride value
 
 uint64 sys_write(int fd, uint64 va, uint len)
 {
@@ -66,18 +69,6 @@ uint64 sys_gettimeofday(uint64 va, int _tz)
 	return 0;
 }
 
-
-uint64 sys_getpid()
-{
-	return curr_proc()->pid;
-}
-
-uint64 sys_getppid()
-{
-	struct proc *p = curr_proc();
-	return p->parent == NULL ? IDLE_PID : p->parent->pid;
-}
-
 uint64 sys_mmap(uint64 start, uint64 len, int port, int flag, int fd) {
 	if (len == 0) return 0;
 	if (len > MAX_MMAP_SIZE) return -1;
@@ -130,6 +121,17 @@ uint64 sys_munmap(uint64 start, uint64 len) {
 	return 0;
 }
 
+uint64 sys_getpid()
+{
+	return curr_proc()->pid;
+}
+
+uint64 sys_getppid()
+{
+	struct proc *p = curr_proc();
+	return p->parent == NULL ? IDLE_PID : p->parent->pid;
+}
+
 int sys_task_info(uint64 va) {
 	struct proc *p = curr_proc();
 
@@ -140,10 +142,15 @@ int sys_task_info(uint64 va) {
 
 	ti->status = p->info->status;
 
-	// int size = sizeof(curr_proc()->info->syscall_times) / sizeof(curr_proc()->info->syscall_times[0]);
 	for (int i = 0; i < MAX_SYSCALL_NUM; i++) {
         ti->syscall_times[i] = p->info->syscall_times[i];
     }
+
+	uint64 now = get_cycle() / (CPU_FREQ / 1000);
+	ti->time = now - p->info->time;
+
+	return 0;
+}
 
 
 uint64 sys_clone()
@@ -171,12 +178,31 @@ uint64 sys_wait(int pid, uint64 va)
 uint64 sys_spawn(uint64 va)
 {
 	// TODO: your job is to complete the sys call
-	return -1;
+
+	struct proc *p = curr_proc();
+
+	char name[200];
+	copyinstr(p->pagetable, name, va, 200);
+	int id = get_id_by_name(name);
+	if (id < 0) { return -1; }
+
+	struct proc *np = allocproc();
+	if (np == 0) { return -1; }
+	loader(id, np);
+
+	np->parent = p;
+	np->state = RUNNABLE;
+	
+	return np->pid;
 }
 
 uint64 sys_set_priority(long long prio){
     // TODO: your job is to complete the sys call
-    return -1;
+	if (prio < 2) { return -1; }
+	struct proc *p = curr_proc();
+	p->priority = prio;
+	p->pass = BIG_STRIDE / prio;
+	return prio;
 }
 
 
@@ -190,6 +216,11 @@ void syscall()
 			   trapframe->a3, trapframe->a4, trapframe->a5 };
 	tracef("syscall %d args = [%x, %x, %x, %x, %x, %x]", id, args[0],
 	       args[1], args[2], args[3], args[4], args[5]);
+
+	if (id > 0 && id < MAX_SYSCALL_NUM) {
+		curr_proc()->info->syscall_times[id]++;
+	}
+
 	switch (id) {
 	case SYS_write:
 		ret = sys_write(args[0], args[1], args[2]);
@@ -224,7 +255,7 @@ void syscall()
 	case SYS_spawn:
 		ret = sys_spawn(args[0]);
 		break;
-	case sys_task_info:
+	case SYS_task_info:
 		ret = sys_task_info(args[0]);
 		break;
 	case SYS_mmap:
@@ -233,8 +264,9 @@ void syscall()
 	case SYS_munmap:
 		ret = sys_munmap(args[0], args[1]);
 		break;
-
-
+	case SYS_setpriority:
+		ret = sys_set_priority(args[0]);
+		break;
 	default:
 		ret = -1;
 		errorf("unknown syscall %d", id);
