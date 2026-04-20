@@ -275,7 +275,7 @@ int exec(char *path, char **argv)
 		return -1;
 	}
 	uvmunmap(p->pagetable, 0, p->max_page, 1);
-	bin_loader(ip, p);
+	loader(ip, p);
 	iput(ip);
 	return push_argv(p, argv);
 }
