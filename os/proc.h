@@ -70,18 +70,19 @@ void scheduler() __attribute__((noreturn));
 void sched();
 void yield();
 int fork();
-// int exec(char *, char **);    // << Tryna fix
-int exec(char *);
+int exec(char *, char **);
 int wait(int, int *);
 void add_task(struct proc *);
 struct proc *pop_task();
 struct proc *allocproc();
 int fdalloc(struct file *);
+int init_stdio(struct proc *);
+int push_argv(struct proc *, char **);
 // swtch.S
 void swtch(struct context *, struct context *);
 
 // Log: Trying to fix implicit declaration error
-int init_stdio(struct proc *);
-int push_argv(struct proc *, char **);
+// int init_stdio(struct proc *);
+// int push_argv(struct proc *, char **);
 
 #endif // PROC_H

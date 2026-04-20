@@ -267,16 +267,19 @@ int push_argv(struct proc *p, char **argv)
 	return argc; // this ends up in a0, the first argument to main(argc, argv)
 }
 
-int exec(char *name)//, char **argv)
+int exec(char *path, char **argv)
 {
-	int id = get_id_by_name(name);
-	if (id < 0)
-		return -1;
+	infof("exec : %s\n", path);
+	struct inode *ip;
 	struct proc *p = curr_proc();
+	if ((ip = namei(path)) == 0) {
+		errorf("invalid file name %s\n", path);
+		return -1;
+	}
 	uvmunmap(p->pagetable, 0, p->max_page, 1);
-	p->max_page = 0;
-	loader(id, p);
-	return 0;
+	bin_loader(ip, p);
+	iput(ip);
+	return push_argv(p, argv);
 }
 
 int wait(int pid, int *code)

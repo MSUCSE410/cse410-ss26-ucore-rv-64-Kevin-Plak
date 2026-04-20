@@ -5,7 +5,7 @@
 #include "syscall_ids.h"
 #include "timer.h"
 #include "trap.h"
-#include "vm.c"
+#include "vm.h"
 
 #define MAX_MMAP_SIZE (1024 * 1024 * 1024)
 
