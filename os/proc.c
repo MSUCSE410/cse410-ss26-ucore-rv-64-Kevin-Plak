@@ -8,6 +8,9 @@
 struct proc pool[NPROC];
 __attribute__((aligned(16))) char kstack[NPROC][PAGE_SIZE];
 __attribute__((aligned(4096))) char trapframe[NPROC][TRAP_PAGE_SIZE];
+TaskInfo ti_pool[NPROC];
+
+int BIG_STRIDE = 65536;		// Given BigStride value
 
 extern char boot_stack_top[];
 struct proc *current_proc;
@@ -37,6 +40,8 @@ void proc_init()
 		p->state = UNUSED;
 		p->kstack = (uint64)kstack[p - pool];
 		p->trapframe = (struct trapframe *)trapframe[p - pool];
+		p->info = &ti_pool[p-pool];
+		p->info->status = UnInit;
 	}
 	idle.kstack = (uint64)boot_stack_top;
 	idle.pid = IDLE_PID;
@@ -96,6 +101,12 @@ found:
 	memset((void *)p->files, 0, sizeof(struct file *) * FD_BUFFER_SIZE);
 	p->context.ra = (uint64)usertrapret;
 	p->context.sp = p->kstack + KSTACK_SIZE;
+	
+	// CH5: Set process priority to 16, stride to 0, and pass to "big stride" / priority
+	p->priority = 16;		// Process with smallest priority selected to run
+	p->stride = 0;			// Process stride starts as 0 and increases to give other processes chance to run
+	p->pass = BIG_STRIDE / p->priority;		// Proof not given, ensures each process gets reasonable time to shine each
+
 	return p;
 }
 
@@ -119,27 +130,25 @@ void scheduler()
 {
 	struct proc *p;
 	for (;;) {
-		/*int has_proc = 0;
+		// CH5: 
+		struct proc *smallest_p = 0;
 		for (p = pool; p < &pool[NPROC]; p++) {
 			if (p->state == RUNNABLE) {
-				has_proc = 1;
-				tracef("swtich to proc %d", p - pool);
-				p->state = RUNNING;
-				current_proc = p;
-				swtch(&idle.context, &p->context);
+				if (smallest_p == 0 || p->stride < smallest_p->stride) { 
+					smallest_p = p;
+				}
 			}
 		}
-		if(has_proc == 0) {
-			panic("all app are over!\n");
-		}*/
-		p = fetch_task();
-		if (p == NULL) {
+
+		if (smallest_p == 0) {
 			panic("all app are over!\n");
 		}
-		tracef("swtich to proc %d", p - pool);
-		p->state = RUNNING;
-		current_proc = p;
-		swtch(&idle.context, &p->context);
+
+		tracef("swtich to proc %d", smallest_p - pool);
+		smallest_p->state = RUNNING;
+		current_proc = smallest_p;
+		smallest_p->stride += smallest_p->pass;
+		swtch(&idle.context, &smallest_p->context);
 	}
 }
 

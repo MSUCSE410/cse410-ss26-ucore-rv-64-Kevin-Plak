@@ -3,6 +3,11 @@
 #include "file.h"
 #include "trap.h"
 
+// static int app_num;
+// static uint64 *app_info_ptr;
+// extern char _app_num[], _app_names[], INIT_PROC[];
+// char names[MAX_APP_NUM][MAX_STR_LEN];
+
 extern char INIT_PROC[];
 
 int bin_loader(struct inode *ip, struct proc *p)
