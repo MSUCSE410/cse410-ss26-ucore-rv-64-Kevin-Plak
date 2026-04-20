@@ -250,6 +250,9 @@ void syscall()
 	case SYS_spawn:
 		ret = sys_spawn(args[0]);
 		break;
+	case SYS_setpriority:
+		ret = sys_set_priority;
+		break;
 	default:
 		ret = -1;
 		errorf("unknown syscall %d", id);
