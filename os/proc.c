@@ -130,25 +130,27 @@ void scheduler()
 {
 	struct proc *p;
 	for (;;) {
-		// CH5: 
-		struct proc *smallest_p = 0;
+		/*int has_proc = 0;
 		for (p = pool; p < &pool[NPROC]; p++) {
 			if (p->state == RUNNABLE) {
-				if (smallest_p == 0 || p->stride < smallest_p->stride) { 
-					smallest_p = p;
-				}
+				has_proc = 1;
+				tracef("swtich to proc %d", p - pool);
+				p->state = RUNNING;
+				current_proc = p;
+				swtch(&idle.context, &p->context);
 			}
 		}
-
-		if (smallest_p == 0) {
+		if(has_proc == 0) {
+			panic("all app are over!\n");
+		}*/
+		p = fetch_task();
+		if (p == NULL) {
 			panic("all app are over!\n");
 		}
-
-		tracef("swtich to proc %d", smallest_p - pool);
-		smallest_p->state = RUNNING;
-		current_proc = smallest_p;
-		smallest_p->stride += smallest_p->pass;
-		swtch(&idle.context, &smallest_p->context);
+		tracef("swtich to proc %d", p - pool);
+		p->state = RUNNING;
+		current_proc = p;
+		swtch(&idle.context, &p->context);
 	}
 }
 
@@ -265,7 +267,7 @@ int push_argv(struct proc *p, char **argv)
 	return argc; // this ends up in a0, the first argument to main(argc, argv)
 }
 
-int exec(char *name)
+int exec(char *name)//, char **argv)
 {
 	int id = get_id_by_name(name);
 	if (id < 0)

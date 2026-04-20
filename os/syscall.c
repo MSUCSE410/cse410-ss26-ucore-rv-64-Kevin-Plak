@@ -5,7 +5,7 @@
 #include "syscall_ids.h"
 #include "timer.h"
 #include "trap.h"
-#include "vm.h"
+#include "vm.c"
 
 #define MAX_MMAP_SIZE (1024 * 1024 * 1024)
 
@@ -86,7 +86,7 @@ uint64 sys_sched_yield()
 	return 0;
 }
 
-uint64 sys_gettimeofday(uint64 va, int _tz)
+uint64 sys_gettimeofday(uint64 va, int _tz) 
 {
 	struct proc *p = curr_proc();
 
@@ -186,6 +186,7 @@ int sys_task_info(uint64 va) {
 	return 0;
 }
 
+
 uint64 sys_clone()
 {
 	debugf("fork!");
@@ -213,6 +214,8 @@ uint64 sys_exec(uint64 path, uint64 uargv)
 		argv[i] = (char *)strpool[i];
 	}
 	argv[i] = NULL;
+
+	// return exec(name);
 	return exec(name, (char **)argv);
 }
 
@@ -252,7 +255,6 @@ uint64 sys_set_priority(long long prio){
 	p->pass = 65536 / prio;
 	return prio;
 }
-
 
 uint64 sys_openat(uint64 va, uint64 omode, uint64 _flags)
 {
@@ -362,7 +364,6 @@ void syscall()
 	case SYS_setpriority:
 		ret = sys_set_priority(args[0]);
 		break;
-
 	default:
 		ret = -1;
 		errorf("unknown syscall %d", id);
